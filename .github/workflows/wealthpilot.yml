@@ -1,0 +1,73 @@
+name: WealthPilot · beursdata en iPhone-app
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 23:27 UTC, Monday-Friday, after the US market close. GitHub may delay runs.
+    - cron: '27 23 * * 1-5'
+  push:
+    branches: ['main']
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'wealthpilot-pages'
+  cancel-in-progress: false
+
+jobs:
+  update-and-publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Bestanden ophalen
+        uses: actions/checkout@v4
+      - name: Python installeren
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Marktdatapakketten installeren
+        run: pip install -r requirements.txt
+      - name: Dagelijkse marktanalyse bijwerken
+        id: refresh
+        continue-on-error: true
+        run: python update_market.py
+      - name: Resultaat tonen
+        run: |
+          if [ '${{ steps.refresh.outcome }}' = 'failure' ]; then
+            echo 'Marktfeed tijdelijk niet beschikbaar; enkel bestaande snapshot gepubliceerd.'
+          else
+            echo 'Nieuwe koerssnapshot beschikbaar.'
+          fi
+      - name: Bewaar de laatste geslaagde koerssnapshot
+        if: steps.refresh.outcome == 'success'
+        continue-on-error: true
+        run: |
+          git config user.name 'wealthpilot-bot'
+          git config user.email 'wealthpilot-bot@users.noreply.github.com'
+          git add data/market.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Data: dagelijkse koerssnapshot [skip ci]'
+            git push origin HEAD:main
+          fi
+      - name: Maak het publicatiepakket
+        run: |
+          mkdir -p dist/icons dist/data
+          cp index.html app.css app.js catalog.js sw.js app.webmanifest dist/
+          cp icons/*.png dist/icons/
+          cp data/market.json dist/data/
+          touch dist/.nojekyll
+      - name: GitHub Pages voorbereiden
+        uses: actions/configure-pages@v5
+      - name: Website uploaden
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'dist'
+      - name: Website publiceren
+        id: deployment
+        uses: actions/deploy-pages@v4

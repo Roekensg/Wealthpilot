@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": null,
+  "latestTradingDay": null,
+  "source": "Yahoo Finance via yfinance; dagelijkse slotkoersen, mogelijk vertraagd",
+  "fx": {"EURUSD": null},
+  "coverage": {"requested": 0, "valid": 0, "failed": []},
+  "instruments": []
+}
